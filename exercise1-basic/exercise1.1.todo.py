@@ -4,7 +4,7 @@ import sys
 import cv2
 import numpy as np
 
-from cyber_py3 import cyber
+from cyber_py import cyber
 from modules.sensors.proto.sensor_image_pb2 import Image
 # from modules.exercises.common.image_utils import reshape
 
@@ -18,17 +18,19 @@ class Exercise(object):
         self.msg = Image()
 
         # TODO create reader
-
+        self.node.create_reader("/realsense/color_image",Image,self.callback)
         # TODO create writer
-        
+        self.writer = self.node.create_writer("/realsense/color_image/compressed",Image)
 
     def callback(self, data):
         # TODO print frame number
-
+        print('frame number is : %s' % data.frame_no)
         # TODO api to reshape image
-
+        self.msg = data
+        self.msg.data = self.reshape(data.data)
         # TODO publish, write compressed image
-        pass
+        self.writer.write(self.msg)
+        print('Compressed data has been published to topic /realsense/color_image/compressed')
 
     def reshape(self, data):
         """api to reshape and encodes image, you can call self.reshape(data)"""
@@ -47,7 +49,7 @@ if __name__ == '__main__':
     cyber.init()
 
     # TODO update node to your gourp_name or other thing
-    exercise_node = cyber.Node("exercise1_node_name")
+    exercise_node = cyber.Node("exercise1_node_will")
     exercise = Exercise(exercise_node)
 
     exercise_node.spin()

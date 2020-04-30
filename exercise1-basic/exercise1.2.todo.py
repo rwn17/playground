@@ -10,8 +10,8 @@ import sys
 
 import termios, fcntl, os
 
-from cyber_py3 import cyber
-from cyber_py3 import cyber_time
+from cyber_py import cyber
+from cyber_py import cyber_time
 from modules.control.proto.control_pb2 import Control_Command
 
 sys.path.append("../")
@@ -28,7 +28,8 @@ fcntl.fcntl(fd, fcntl.F_SETFL, oldflags | os.O_NONBLOCK)
 
 THROTTLE_MAX = 20.0
 THROTTLE_MIN = -20.0
-THROTTLE_STEP = 0.5
+THROTTLE_STEP_F = 0.5
+THROTTLE_STEP_R =0.25
 
 STEER_ANGLE_MAX = 45.0
 STEER_ANGLE_MIN = -45.0
@@ -44,11 +45,11 @@ class Exercise(object):
         self.loop()
 
     def hotkey_w(self):
-        throttle = self.msg.throttle + THROTTLE_STEP
+        throttle = self.msg.throttle + THROTTLE_STEP_F
         self.msg.throttle = THROTTLE_MAX if throttle >= THROTTLE_MAX else throttle
 
     def hotkey_s(self):
-        throttle = self.msg.throttle - THROTTLE_STEP
+        throttle = self.msg.throttle - THROTTLE_STEP_R
         self.msg.throttle = THROTTLE_MIN if throttle <= THROTTLE_MIN else throttle
 
     def hotkey_a(self):
@@ -65,16 +66,19 @@ class Exercise(object):
                 try :
                     c = sys.stdin.read(1)
                     if c:
-                        # print("Got character", repr(c))
-                        # TODO 3 update your logic by keyboad
-                        # if c == 'w': self.hotkey_w()
-                        # if c == 's': self.hotkey_s()
-                        # if c == 'a': self.hotkey_a()
-                        # if c == 'd': self.hotkey_d()
+                        print("Got character", repr(c))
+                        #TODO 3 update your logic by keyboad
+                        if c == 'w': self.hotkey_w()
+                        elif c == 's': self.hotkey_s()
+                        elif c == 'a': self.hotkey_a()
+                        elif c == 'd': self.hotkey_d()
+                        else: 
+                            print('please type one of " W A S D"/n')    
+                            print('*'*80)    
                         print(self.msg)
-                        # TODO 4 write control message to channel /control
-                        # self.writer.write(self.msg)
-                        # ratio domain 100hz
+                        #TODO 4 write control message to channel /control
+                        self.writer.write(self.msg)
+                        #ratio domain 100hz
                         time.sleep(0.01)
                 except IOError: pass
         finally:
@@ -85,7 +89,7 @@ if __name__ == '__main__':
     cyber.init()
 
     # TODO 1 update node to your name
-    exercise_node = cyber.Node("exercise1.2_node_name")
+    exercise_node = cyber.Node("exercise1.2_node_will")
     exercise = Exercise(exercise_node)
 
     exercise_node.spin()
