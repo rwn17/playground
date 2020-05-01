@@ -6,16 +6,16 @@ import time
 import numpy as np
 import cv2
 
-from cyber_py3 import cyber
+from cyber_py import cyber
 from modules.sensors.proto.sensor_image_pb2 import Image
 
 sys.path.append("../")
 
 # roll
-src_corners = [[, ], [, ], [, ], [, ]]
+src_corners = [[284,222], [417,223], [265,283], [455, 284]]
 
 # turn to
-dst_corners = [[, ], [, ], [, ], [, ]]
+dst_corners = [[135,243 ], [325,244 ], [135,433 ], [325, 434]]
 
 M = cv2.getPerspectiveTransform(
     np.float32(src_corners), np.float32(dst_corners))
@@ -43,7 +43,7 @@ class Exercise(object):
 
     def callback(self, data):
         # TODO
-        print(data.frame_no)
+        #print(data.frame_no)
         # TODO reshape
         self.reshape(data)
         # TODO publish, write to channel
@@ -72,7 +72,7 @@ if __name__ == '__main__':
     cyber.init()
 
     # TODO update node to your name
-    exercise_node = cyber.Node("your_name")
+    exercise_node = cyber.Node("will's_mono_cali")
     exercise = Exercise(exercise_node)
 
     exercise_node.spin()
