@@ -31,10 +31,10 @@ class Config(object):
     """
     def __init__(self):
         # car parameter
-        self.max_speed = 0.8  # [m/s]  # 最大速度
+        self.max_speed = 0.5  # [m/s]  # 最大速度
         self.min_speed = 0  # [m/s]  # 最小速度，设置为不倒车
-        self.max_yawrate = 90.0 * math.pi / 180.0  # [rad/s]  # 最大角速度s
-        self.max_accel = 0.8  # [m/ss]  # 最大加速度
+        self.max_yawrate = 60.0 * math.pi / 180.0  # [rad/s]  # 最大角速度s
+        self.max_accel = 1.1  # [m/ss]  # 最大加速度
         self.max_dyawrate = 600.0 * math.pi / 180.0  # [rad/ss]  # 最大角加速度
         self.v_reso = 0.25  # [m/s]，速度分辨率
         self.yawrate_reso = 1.2 * math.pi / 180.0  # [rad/s]，角速度分辨率
@@ -42,8 +42,10 @@ class Config(object):
         self.predict_time = 3  # [s]  # 向前预估三秒
         self.to_goal_cost_gain = 6  # 目标代价增益
         self.speed_cost_gain = 10  # 速度代价增益
-        self.obstacle_cost_gain = 20  # 障碍物代价增益
+        self.obstacle_cost_gain = 1  # 障碍物代价增益
         self.yawrate_cost_gain = 10  # 角速度代价增益
+        self.obstacle_radius = 0.2  # [m]  # 机器人半径
+        #self.car_radius = 0.1
 
 
 def motion(x, u, dt):
@@ -67,7 +69,7 @@ def calc_dynamic_window(x, config):
     位置空间集合
     :param x:当前位置空间
     :param config:
-    :return:目前是两个速度的交集
+    :return:目前是两个速度的交集，还差一个
     """
 
     # 车辆能够达到的最大最小速度
@@ -148,7 +150,7 @@ def calc_obstacle_cost(traj, ob, config):
 
     ##TODO
 
-    if len(ob) < 1:
+    if len(ob) <= 1:
         return 0
 
     skip_n = 2  # 省时
@@ -239,8 +241,8 @@ def calc_final_input(x, u, vr, config, goal, ob):
                 best_trajectory = trajectory
 
     #限制小车的最小速度
-    if min_u[0] < 0.5:
-        min_u[0] = 0.5
+    if min_u[0] < 0.6:
+        min_u[0] = 0.6
 
     yawrate_old = min_u[1]
 
@@ -277,6 +279,24 @@ class planning(object):
 
         global_str = ''
 
+        if os.path.exists('global.txt'):
+            f = open("global.txt", 'r')
+            global_str = f.read()
+            print(global_str)
+            f.close()
+        else:
+            print("Error: there is no global trajectory!!!")
+
+        global_str = global_str.replace('[(', '')
+        global_str = global_str.replace(')]', '')
+        global_trj = global_str.split('), (')
+
+        for point in global_trj:
+            point_info = point.split(', ')
+            self.pathList.append([int(point_info[0]), int(point_info[1])])
+
+        print("update global trajectory:finish!")
+
         self.node.create_reader("/planning/global_trajectory", Trajectory,
                                 self.globalcallback)
         self.node.create_reader("/perception/obstacles", PerceptionObstacles,
@@ -284,7 +304,7 @@ class planning(object):
         self.node.create_reader("/geek/uwb/localization", pos, self.callback)
         self.writer = self.node.create_writer("/planning/dwa_trajectory",
                                               Trajectory)
-        self.vwriter = self.node.create_writer("/control/reference",
+        self.vwriter = self.node.create_writer("/control_reference",
                                                Control_Reference)
 
         signal.signal(signal.SIGINT, self.sigint_handler)
@@ -353,11 +373,11 @@ class planning(object):
                 minr = r
                 num_point = i
 
-        if (num_point - 8) <= 0:
-            num_point = 8
+        if (num_point - 5) <= 0:
+            num_point = 5
 
         #规划预瞄点
-        f_point = self.pathList[num_point - 8]
+        f_point = self.pathList[num_point - 5]
 
         self.goal = f_point
 
@@ -373,15 +393,6 @@ class planning(object):
         y_f = f_point[1] * math.cos(yaw) - f_point[0] * math.sin(yaw)
 
         print("trans-goal:", [x_f, y_f])
-        
-	#将预设障碍物坐标从地图坐标系转换到车身坐标系
-        ob_point = [643, 353]
-
-        ob_point = [(ob_point[0] - start_x) / scale, -((ob_point[1] - start_y) / scale)]
-        x_ob = ob_point[0] * math.cos(yaw) + ob_point[1] * math.sin(yaw)
-        y_ob = ob_point[1] * math.cos(yaw) - ob_point[0] * math.sin(yaw)
-
-        print("ob:", [x_ob, y_ob])
 
         print(" planning start!")
 
@@ -391,7 +402,6 @@ class planning(object):
         goal = np.array([x_f, y_f])
 
         ob = np.matrix(self.obstacleList)
-        ob = np.array([[x_ob, y_ob, 0.24/scale]])
 
         # input [forward speed, yawrate]
         u = np.array([0.3, 0.0])
@@ -403,11 +413,13 @@ class planning(object):
 
         x = motion(x, u, config.dt)
 
-        #接近终点减速
-        dist_car_goal = ((((start_x - self.pathList[0][0])**2 +
+        #接近终点
+        car_r = ((((start_x - self.pathList[0][0])**2 +
                    (start_y - self.pathList[0][1])**2)**0.5) / scale)
 
-        if dist_car_goal <= 0.2:
+        print(car_r)
+
+        if car_r <= 0.3:
             u[0] = 0
 
         self.planning_path = Trajectory()
@@ -426,6 +438,13 @@ class planning(object):
         point_xy.x = self.goal[0]
         point_xy.y = self.goal[1]
 
+        self.planning_path.point.append(point_xy)
+        self.planning_path = Trajectory()
+        point_xy.x = x_f
+        point_xy.y = y_f
+        self.planning_path.point.append(point_xy)
+        self.planning_path.point.append(point_xy)
+        self.planning_path.point.append(point_xy)
         self.planning_path.point.append(point_xy)
 
         if not cyber.is_shutdown() and self.planning_path:
